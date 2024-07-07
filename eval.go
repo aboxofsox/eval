@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // precedence defines the precedence of operators
@@ -27,6 +28,12 @@ func (s *Stack[T]) top() T {
 	t := (*s)[len(*s)-1]
 	*s = (*s)[:len(*s)-1]
 	return t
+}
+
+func (s *Stack[T]) ab() (a T, b T) {
+	b = s.top()
+	a = s.top()
+	return
 }
 
 // Output is a generic implementation of a stack
@@ -57,9 +64,7 @@ func eval(expression string) (int, error) {
 			if len(stack) < 2 {
 				return 0, fmt.Errorf("invalid expression: not enough operands")
 			}
-			b, a := stack[len(stack)-1], stack[len(stack)-2]
-			stack = stack[:len(stack)-2]
-
+			a, b := stack.ab()
 			switch token {
 			case "+":
 				stack.append(a + b)
@@ -86,11 +91,15 @@ func eval(expression string) (int, error) {
 	return stack[0], nil
 }
 
-// / rpn converts a given infix expression to Reverse Polish Notation
+// rpn converts a given infix expression to Reverse Polish Notation
 func rpn(expression string) (string, error) {
 	stack := make(Stack[string], 0, 0)
 	output := make(Output[string], 0, 0)
-	tokens := strings.Fields(expression)
+
+	tokens := split(expression)
+	if tokens == nil {
+		return "", fmt.Errorf("invalid expression: %s", expression)
+	}
 
 	for _, token := range tokens {
 		if _, err := strconv.Atoi(token); err == nil {
@@ -127,6 +136,28 @@ func rpn(expression string) (string, error) {
 	}
 
 	return strings.Join(output, " "), nil
+}
+
+// split splits the given expression into tokens
+func split(expression string) []string {
+	var tokens []string
+	for _, c := range expression {
+		if unicode.IsSpace(c) {
+			continue
+		}
+		if c == '(' || c == ')' || c == '+' || c == '-' || c == '*' || c == '/' {
+			tokens = append(tokens, string(c))
+		} else if unicode.IsDigit(c) {
+			if len(tokens) > 0 && unicode.IsDigit(rune(tokens[len(tokens)-1][0])) {
+				tokens[len(tokens)-1] += string(c)
+			} else {
+				tokens = append(tokens, string(c))
+			}
+		} else {
+			return nil
+		}
+	}
+	return tokens
 }
 
 // Eval evaluates the given infix expression
