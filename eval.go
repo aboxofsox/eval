@@ -7,6 +7,16 @@ import (
 	"unicode"
 )
 
+var (
+	ErrorInvalidExpression               = fmt.Errorf("invalid expression")
+	ErrorMismatchedParentheses           = fmt.Errorf("mismatched parentheses")
+	ErrorUnknownToken                    = fmt.Errorf("unknown token")
+	ErrorUnknownOperator                 = fmt.Errorf("unknown operator")
+	ErrorDivisionByZero                  = fmt.Errorf("division by zero")
+	ErrorNotEnoughOperands               = fmt.Errorf("not enough operands")
+	ErrorIncorrectNumberOfResultsOnStack = fmt.Errorf("incorrect number of results on stack")
+)
+
 // precedence defines the precedence of operators
 var precedence = map[string]int{
 	"+": 1,
@@ -15,54 +25,73 @@ var precedence = map[string]int{
 	"/": 2,
 }
 
-// Stack is a generic implementation of a stack
-type Stack[T any] []T
+// stack is a generic implementation of a stack.
+type stack[T any] []T
 
-// append adds a new token to the stack
-func (s *Stack[T]) append(token T) {
+// append adds a new token to the stack.
+func (s *stack[T]) append(token T) {
 	*s = append(*s, token)
 }
 
-// top returns the top token from the stack
-func (s *Stack[T]) top() T {
+// pop returns the top token from the stack.
+func (s *stack[T]) pop() T {
 	t := (*s)[len(*s)-1]
 	*s = (*s)[:len(*s)-1]
 	return t
 }
 
-func (s *Stack[T]) ab() (a T, b T) {
-	b = s.top()
-	a = s.top()
+// ab returns th top two tokens from the stack.
+func (s *stack[T]) ab() (a T, b T) {
+	b = s.pop()
+	a = s.pop()
 	return
 }
 
-// Output is a generic implementation of a stack
-type Output[T any] []T
+// last returns the last token in the stack.
+func (s *stack[T]) last() T {
+	return (*s)[len(*s)-1]
+}
 
-// append adds a new token to the output
-func (o *Output[T]) append(token T) {
+// output is a generic implementation of a stack.
+type output[T any] []T
+
+// append adds a new token to the output.
+func (o *output[T]) append(token T) {
 	*o = append(*o, token)
 }
 
-// top returns the top token from the output
-func (o *Output[T]) top() T {
+// pop returns the pop token from the output.
+func (o *output[T]) pop() T {
 	t := (*o)[len(*o)-1]
 	*o = (*o)[:len(*o)-1]
 	return t
 
 }
 
-// eval evaluates the given expression in Reverse Polish Notation
+// Eval evaluates the given infix expression.
+func Eval(expression string) (int, error) {
+	exp, err := rpn(expression)
+	if err != nil {
+		return 0, err
+	}
+	n, err := eval(exp)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// eval evaluates the given expression in Reverse Polish Notation.
 func eval(expression string) (int, error) {
 	tokens := strings.Split(expression, " ")
-	stack := make(Stack[int], 0, 0)
+	stack := make(stack[int], 0, 0)
 
 	for _, token := range tokens {
 		if v, err := strconv.Atoi(token); err == nil {
-			stack = append(stack, v)
+			stack.append(v)
 		} else if _, ok := precedence[token]; ok && len(token) == 1 {
 			if len(stack) < 2 {
-				return 0, fmt.Errorf("invalid expression: not enough operands")
+				return 0, ErrorNotEnoughOperands
 			}
 			a, b := stack.ab()
 			switch token {
@@ -72,33 +101,33 @@ func eval(expression string) (int, error) {
 				stack.append(a * b)
 			case "/":
 				if b == 0 {
-					return 0, fmt.Errorf("division by zero")
+					return 0, ErrorDivisionByZero
 				}
 				stack.append(a / b)
 			case "-":
 				stack.append(a - b)
 			default:
-				return 0, fmt.Errorf("unknown operator: %s", token)
+				return 0, ErrorUnknownOperator
 			}
 		} else {
-			return 0, fmt.Errorf("invalid token: %s", token)
+			return 0, ErrorUnknownToken
 		}
 	}
 
 	if len(stack) != 1 {
-		return 0, fmt.Errorf("invalid expression: incorrect number of results on stack")
+		return 0, ErrorIncorrectNumberOfResultsOnStack
 	}
 	return stack[0], nil
 }
 
-// rpn converts a given infix expression to Reverse Polish Notation
+// rpn converts a given infix expression to Reverse Polish Notation.
 func rpn(expression string) (string, error) {
-	stack := make(Stack[string], 0, 0)
-	output := make(Output[string], 0, 0)
+	stack := make(stack[string], 0, 0)
+	output := make(output[string], 0, 0)
 
 	tokens := split(expression)
 	if tokens == nil {
-		return "", fmt.Errorf("invalid expression: %s", expression)
+		return "", ErrorInvalidExpression
 	}
 
 	for _, token := range tokens {
@@ -107,30 +136,30 @@ func rpn(expression string) (string, error) {
 		} else if token == "(" {
 			stack.append(token)
 		} else if token == ")" {
-			for len(stack) > 0 && stack[len(stack)-1] != "(" {
-				top := stack.top()
+			for len(stack) > 0 && stack.last() != "(" {
+				top := stack.pop()
 				output.append(top)
 			}
 			if len(stack) == 0 {
-				return "", fmt.Errorf("mismatched parentheses")
+				return "", ErrorMismatchedParentheses
 			}
-			stack = stack[:len(stack)-1]
+			_ = stack.pop()
 		} else if p, ok := precedence[token]; ok {
-			for len(stack) > 0 && p <= precedence[stack[len(stack)-1]] {
-				top := stack.top()
+			for len(stack) > 0 && p <= precedence[stack.last()] {
+				top := stack.pop()
 				output.append(top)
 
 			}
 			stack.append(token)
 		} else {
-			return "", fmt.Errorf("unknown token: %s", token)
+			return "", ErrorUnknownToken
 		}
 	}
 
 	for len(stack) > 0 {
-		top := stack.top()
+		top := stack.pop()
 		if top == "(" {
-			return "", fmt.Errorf("mismatched parentheses")
+			return "", ErrorMismatchedParentheses
 		}
 		output.append(top)
 	}
@@ -138,7 +167,8 @@ func rpn(expression string) (string, error) {
 	return strings.Join(output, " "), nil
 }
 
-// split splits the given expression into tokens
+// split splits the given expression into tokens.
+// whitespace is ignored.
 func split(expression string) []string {
 	var tokens []string
 	for _, c := range expression {
@@ -158,17 +188,4 @@ func split(expression string) []string {
 		}
 	}
 	return tokens
-}
-
-// Eval evaluates the given infix expression
-func Eval(expression string) (int, error) {
-	rpn, err := rpn(expression)
-	if err != nil {
-		return 0, err
-	}
-	n, err := eval(rpn)
-	if err != nil {
-		return 0, err
-	}
-	return n, nil
 }

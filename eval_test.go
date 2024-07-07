@@ -3,6 +3,7 @@ package eval
 import "testing"
 
 func TestAlgo(t *testing.T) {
+	// whitespace is ignored
 	tests := map[string]int{
 		"2 + 2":                     4,
 		"10 * 2":                    20,
@@ -18,9 +19,17 @@ func TestAlgo(t *testing.T) {
 		"( 100 + 200 ) * 2":         600,
 		"(100 + 200) * 2":           600,
 		"(100 + 200) + (100 + 200)": 600,
+		"100 / 100":                 1,
+		"100/100":                   1,
+		"20 - 10 * 2":               0,
+		"2 * (100 + 100)":           400,
 		"2+2":                       4,
 		"100+100":                   200,
 		"100+100*2":                 300,
+		"(4/2) + (4/2)":             4,
+		"(4/2) -(4*2)":              -6,
+		"(4+2*4)+ (4/2)":            14,
+		"(0-1)*2":                   -2, // parser does not support negative numbers, yet
 	}
 
 	for expression, result := range tests {
